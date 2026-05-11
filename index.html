@@ -4,7 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Open Weather — fast, free weather for anywhere</title>
-    <meta name="description" content="Search any place and see current conditions, a 7-day forecast, and air quality. Powered by Open-Meteo. Free, no signup." />
+    <meta name="description" content="Search any place and see current conditions, a 7-day forecast, air quality, and a live rain radar. Powered by Open-Meteo. Free, no signup." />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <style>
       :root {
         --bg: #0b0f17;
@@ -34,9 +35,17 @@
       }
       a { color: var(--accent); }
       .wrap {
-        max-width: 760px;
+        max-width: 820px;
         margin: 0 auto;
-        padding: 32px 20px 80px;
+        padding: 28px 20px 80px;
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
       }
       header h1 {
         font-size: 22px;
@@ -45,17 +54,40 @@
         letter-spacing: -0.01em;
       }
       header p {
-        margin: 0 0 24px;
+        margin: 0;
         color: var(--text-dim);
         font-size: 14px;
+      }
+      .unit-toggle {
+        display: inline-flex;
+        background: var(--bg-input);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 3px;
+      }
+      .unit-toggle button {
+        background: transparent;
+        border: 0;
+        color: var(--text-dim);
+        padding: 6px 14px;
+        font-size: 13px;
+        font-weight: 500;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+      }
+      .unit-toggle button.active {
+        background: var(--accent);
+        color: #0b0f17;
       }
       .search {
         display: flex;
         gap: 8px;
-        margin-bottom: 28px;
+        margin-bottom: 12px;
       }
       .search input {
         flex: 1;
+        min-width: 0;
         padding: 12px 14px;
         font-size: 16px;
         background: var(--bg-input);
@@ -70,18 +102,44 @@
         box-shadow: 0 0 0 3px var(--accent-soft);
       }
       .search button {
-        padding: 12px 18px;
+        padding: 12px 16px;
         font-size: 15px;
         font-weight: 500;
-        background: var(--accent);
-        color: #0b0f17;
-        border: 0;
+        border: 1px solid var(--border);
+        background: var(--bg-input);
+        color: var(--text);
         border-radius: 10px;
         cursor: pointer;
-        transition: filter 0.1s;
+        transition: filter 0.1s, border-color 0.15s;
+        white-space: nowrap;
       }
-      .search button:hover { filter: brightness(1.05); }
+      .search button:hover { border-color: var(--accent); }
+      .search button.primary {
+        background: var(--accent);
+        color: #0b0f17;
+        border-color: var(--accent);
+      }
       .search button:active { transform: translateY(1px); }
+      .examples {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-bottom: 24px;
+      }
+      .examples button {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text-dim);
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .examples button:hover {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
       .status {
         padding: 16px;
         border-radius: 10px;
@@ -151,10 +209,7 @@
         color: var(--text-faint);
         margin: 28px 0 10px;
       }
-      .forecast {
-        display: grid;
-        gap: 8px;
-      }
+      .forecast { display: grid; gap: 8px; }
       .day {
         display: grid;
         grid-template-columns: 1fr 1.5fr 1fr 1fr;
@@ -175,7 +230,6 @@
       .day .temps { font-variant-numeric: tabular-nums; text-align: right; font-size: 15px; }
       .day .temps .min { color: var(--text-faint); }
       .day .precip { font-size: 13px; color: var(--accent); text-align: right; }
-      .day .wind { font-size: 13px; color: var(--text-faint); text-align: right; }
       .aqi {
         display: grid;
         grid-template-columns: 1fr 1fr 1fr;
@@ -198,6 +252,51 @@
       .cat.poor { color: var(--poor); }
       .cat.very-poor { color: var(--bad); }
       .cat.extremely-poor { color: var(--bad); }
+
+      /* Map */
+      #map {
+        height: 380px;
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        overflow: hidden;
+        box-shadow: var(--shadow);
+        background: #1a2333;
+      }
+      .map-controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 10px;
+        flex-wrap: wrap;
+        font-size: 13px;
+        color: var(--text-dim);
+      }
+      .map-controls button {
+        background: var(--bg-input);
+        border: 1px solid var(--border);
+        color: var(--text);
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: border-color 0.15s;
+      }
+      .map-controls button:hover { border-color: var(--accent); }
+      .map-controls .radar-time {
+        font-variant-numeric: tabular-nums;
+        color: var(--text-faint);
+      }
+      /* Leaflet's default white attribution looks ugly on our dark theme */
+      .leaflet-container { background: #1a2333 !important; }
+      .leaflet-control-attribution {
+        background: rgba(11, 15, 23, 0.85) !important;
+        color: var(--text-faint) !important;
+        font-size: 10px !important;
+      }
+      .leaflet-control-attribution a {
+        color: var(--text-dim) !important;
+      }
+
       footer {
         margin-top: 40px;
         text-align: center;
@@ -206,33 +305,19 @@
       }
       footer a { color: var(--text-dim); text-decoration: none; border-bottom: 1px dotted var(--text-faint); }
       footer a:hover { color: var(--accent); border-color: var(--accent); }
-      .examples {
-        display: flex;
-        gap: 6px;
-        flex-wrap: wrap;
-        margin-bottom: 24px;
-      }
-      .examples button {
-        background: transparent;
-        border: 1px solid var(--border);
-        color: var(--text-dim);
-        padding: 6px 12px;
-        border-radius: 999px;
-        font-size: 13px;
-        cursor: pointer;
-        transition: all 0.15s;
-      }
-      .examples button:hover {
-        color: var(--accent);
-        border-color: var(--accent);
-      }
     </style>
   </head>
   <body>
     <main class="wrap">
       <header>
-        <h1>Open Weather</h1>
-        <p>Search any city for live conditions, a 7-day forecast, and air quality.</p>
+        <div>
+          <h1>Open Weather</h1>
+          <p>Live conditions, 7-day forecast, air quality, and rain radar.</p>
+        </div>
+        <div class="unit-toggle" role="group" aria-label="Temperature unit">
+          <button id="unit-c" type="button" class="active">°C</button>
+          <button id="unit-f" type="button">°F</button>
+        </div>
       </header>
 
       <form class="search" id="search-form" autocomplete="off">
@@ -243,7 +328,8 @@
           aria-label="Search for a place"
           required
         />
-        <button type="submit">Search</button>
+        <button type="button" id="locate-btn" title="Use my location">📍 My location</button>
+        <button type="submit" class="primary">Search</button>
       </form>
 
       <div class="examples">
@@ -254,7 +340,7 @@
         <button type="button" data-place="Sydney">Sydney</button>
       </div>
 
-      <div class="status" id="status">Type a place above and press Enter.</div>
+      <div class="status" id="status">Type a place above and press Enter, or use your location.</div>
 
       <section class="hidden" id="results">
         <div class="card" id="current-card">
@@ -277,37 +363,52 @@
 
         <h2>Air quality</h2>
         <div class="aqi" id="aqi"></div>
+
+        <h2>Map &amp; rain radar</h2>
+        <div id="map" aria-label="Map of the searched location"></div>
+        <div class="map-controls">
+          <button type="button" id="radar-toggle">Show rain radar</button>
+          <button type="button" id="radar-play" class="hidden">▶ Play</button>
+          <span class="radar-time" id="radar-time"></span>
+        </div>
       </section>
 
       <footer>
-        Data from
+        Weather &amp; air quality from
         <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>
-        · CC-BY 4.0. No tracking, no ads, no API key.
+        · Map tiles ©
+        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
+        · Radar from
+        <a href="https://www.rainviewer.com" target="_blank" rel="noopener">RainViewer</a>.
+        No tracking, no ads, no API keys.
       </footer>
     </main>
 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script>
       // ─────────────────────────────────────────────────────────────────────
-      // API endpoints
+      // Endpoints (no auth, no keys)
       // ─────────────────────────────────────────────────────────────────────
-      const GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search";
-      const FORECAST_URL  = "https://api.open-meteo.com/v1/forecast";
-      const AIR_URL       = "https://air-quality-api.open-meteo.com/v1/air-quality";
+      const GEOCODING_URL     = "https://geocoding-api.open-meteo.com/v1/search";
+      const REVERSE_GEOCODING = "https://geocoding-api.open-meteo.com/v1/reverse";
+      const FORECAST_URL      = "https://api.open-meteo.com/v1/forecast";
+      const AIR_URL           = "https://air-quality-api.open-meteo.com/v1/air-quality";
+      const RAINVIEWER_URL    = "https://api.rainviewer.com/public/weather-maps.json";
 
       // ─────────────────────────────────────────────────────────────────────
-      // WMO weather code → human description (matches the MCP server)
+      // WMO weather code → human description
       // ─────────────────────────────────────────────────────────────────────
       const WEATHER_CODES = {
-        0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
-        45: "Fog", 48: "Depositing rime fog",
-        51: "Light drizzle", 53: "Moderate drizzle", 55: "Dense drizzle",
-        56: "Light freezing drizzle", 57: "Dense freezing drizzle",
-        61: "Slight rain", 63: "Moderate rain", 65: "Heavy rain",
-        66: "Light freezing rain", 67: "Heavy freezing rain",
-        71: "Slight snow", 73: "Moderate snow", 75: "Heavy snow", 77: "Snow grains",
-        80: "Slight rain showers", 81: "Moderate rain showers", 82: "Violent rain showers",
-        85: "Slight snow showers", 86: "Heavy snow showers",
-        95: "Thunderstorm", 96: "Thunderstorm with slight hail", 99: "Thunderstorm with heavy hail",
+        0:"Clear sky",1:"Mainly clear",2:"Partly cloudy",3:"Overcast",
+        45:"Fog",48:"Depositing rime fog",
+        51:"Light drizzle",53:"Moderate drizzle",55:"Dense drizzle",
+        56:"Light freezing drizzle",57:"Dense freezing drizzle",
+        61:"Slight rain",63:"Moderate rain",65:"Heavy rain",
+        66:"Light freezing rain",67:"Heavy freezing rain",
+        71:"Slight snow",73:"Moderate snow",75:"Heavy snow",77:"Snow grains",
+        80:"Slight rain showers",81:"Moderate rain showers",82:"Violent rain showers",
+        85:"Slight snow showers",86:"Heavy snow showers",
+        95:"Thunderstorm",96:"Thunderstorm with slight hail",99:"Thunderstorm with heavy hail",
       };
       const describeCode = (c) => WEATHER_CODES[c] ?? `Code ${c}`;
 
@@ -315,7 +416,28 @@
       const compass = (deg) => COMPASS[Math.round(((deg % 360) / 22.5)) % 16];
 
       // ─────────────────────────────────────────────────────────────────────
-      // Tiny DOM helpers
+      // Unit preferences (persisted)
+      // ─────────────────────────────────────────────────────────────────────
+      function getUnit() {
+        try { return localStorage.getItem("unit") || "celsius"; } catch (_) { return "celsius"; }
+      }
+      function setUnit(u) {
+        try { localStorage.setItem("unit", u); } catch (_) {}
+      }
+      function unitGroup() {
+        const u = getUnit();
+        return u === "fahrenheit"
+          ? { temperature_unit: "fahrenheit", wind_speed_unit: "mph", precipitation_unit: "inch" }
+          : { temperature_unit: "celsius",    wind_speed_unit: "kmh", precipitation_unit: "mm" };
+      }
+      function syncUnitToggleUI() {
+        const u = getUnit();
+        $("unit-c").classList.toggle("active", u === "celsius");
+        $("unit-f").classList.toggle("active", u === "fahrenheit");
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // DOM helpers
       // ─────────────────────────────────────────────────────────────────────
       const $ = (id) => document.getElementById(id);
       const setStatus = (msg, isErr = false) => {
@@ -349,7 +471,18 @@
         return top;
       }
 
+      async function reverseGeocode(lat, lon) {
+        const url = `${REVERSE_GEOCODING}?latitude=${lat}&longitude=${lon}&language=en&format=json`;
+        try {
+          const res = await fetch(url);
+          if (!res.ok) return null;
+          const data = await res.json();
+          return data.results?.[0] || null;
+        } catch (_) { return null; }
+      }
+
       async function getForecast(lat, lon) {
+        const u = unitGroup();
         const params = new URLSearchParams({
           latitude: lat,
           longitude: lon,
@@ -357,6 +490,7 @@
           daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset",
           timezone: "auto",
           forecast_days: 7,
+          ...u,
         });
         const res = await fetch(`${FORECAST_URL}?${params}`);
         if (!res.ok) throw new Error(`Forecast failed (${res.status})`);
@@ -377,7 +511,7 @@
       }
 
       // ─────────────────────────────────────────────────────────────────────
-      // EAQI band labels (per Open-Meteo docs)
+      // Air quality bands
       // ─────────────────────────────────────────────────────────────────────
       function eaqiCategory(v) {
         if (v == null) return { label: "—", cls: "" };
@@ -414,8 +548,8 @@
         $("desc-feels").textContent = `Feels like ${Math.round(c.apparent_temperature)}${u.apparent_temperature}`;
 
         $("stats").innerHTML = [
-          ["Humidity",     `${c.relative_humidity_2m}${u.relative_humidity_2m}`],
-          ["Wind",         `${Math.round(c.wind_speed_10m)} ${u.wind_speed_10m} ${compass(c.wind_direction_10m)}`],
+          ["Humidity",      `${c.relative_humidity_2m}${u.relative_humidity_2m}`],
+          ["Wind",          `${Math.round(c.wind_speed_10m)} ${u.wind_speed_10m} ${compass(c.wind_direction_10m)}`],
           ["Precipitation", `${c.precipitation}${u.precipitation}`],
         ].map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
       }
@@ -430,7 +564,6 @@
           const tMax = Math.round(d.temperature_2m_max[i]);
           const pSum = d.precipitation_sum[i];
           const pProb = d.precipitation_probability_max[i];
-          const wMax = Math.round(d.wind_speed_10m_max[i]);
           const today = i === 0;
           return `
             <div class="day">
@@ -438,8 +571,7 @@
               <div class="summary">${describeCode(code)}</div>
               <div class="temps"><span class="max">${tMax}°</span> <span class="min">/ ${tMin}°</span></div>
               <div class="precip">${pSum > 0 ? `${pSum}${u.precipitation_sum} ${pProb != null ? `· ${pProb}%` : ""}` : ""}</div>
-            </div>
-          `;
+            </div>`;
         }).join("");
         $("forecast").innerHTML = html;
       }
@@ -449,19 +581,15 @@
           $("aqi").innerHTML = "<div class='pill'><div class='k'>Air quality</div><div class='v'>Not available</div></div>";
           return;
         }
-        // Pick the hour closest to now.
-        const now = new Date().toISOString().slice(0, 13); // YYYY-MM-DDTHH
+        const now = new Date().toISOString().slice(0, 13);
         let idx = air.hourly.time.findIndex((t) => t.startsWith(now));
         if (idx === -1) idx = 0;
-
-        const eaqi = air.hourly.european_aqi?.[idx];
+        const eaqi  = air.hourly.european_aqi?.[idx];
         const usaqi = air.hourly.us_aqi?.[idx];
-        const pm25 = air.hourly.pm2_5?.[idx];
-        const pm10 = air.hourly.pm10?.[idx];
-
+        const pm25  = air.hourly.pm2_5?.[idx];
+        const pm10  = air.hourly.pm10?.[idx];
         const ec = eaqiCategory(eaqi);
         const uc = usAqiCategory(usaqi);
-
         $("aqi").innerHTML = `
           <div class="pill">
             <div class="k">European AQI</div>
@@ -477,33 +605,152 @@
             <div class="k">PM2.5 / PM10</div>
             <div class="v">${pm25 != null ? Math.round(pm25) : "—"} / ${pm10 != null ? Math.round(pm10) : "—"}</div>
             <div class="cat">µg/m³</div>
-          </div>
-        `;
+          </div>`;
       }
 
       // ─────────────────────────────────────────────────────────────────────
-      // Top-level lookup
+      // Map (Leaflet)
+      // ─────────────────────────────────────────────────────────────────────
+      let map = null;
+      let marker = null;
+      let radarLayer = null;
+      let radarFrames = [];
+      let radarFrameIdx = 0;
+      let radarHost = "";
+      let radarVisible = false;
+      let radarTimer = null;
+
+      function initMap(lat, lon, label) {
+        if (!map) {
+          map = L.map("map", { zoomControl: true }).setView([lat, lon], 8);
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: "© OpenStreetMap contributors",
+            maxZoom: 18,
+          }).addTo(map);
+        } else {
+          map.setView([lat, lon], 8);
+        }
+        if (marker) marker.remove();
+        marker = L.marker([lat, lon]).addTo(map);
+        if (label) marker.bindPopup(label).openPopup();
+
+        // Re-apply radar layer at new location if radar is on.
+        if (radarVisible) showRadarFrame(radarFrameIdx);
+      }
+
+      async function fetchRadarFrames() {
+        if (radarFrames.length) return;
+        const res = await fetch(RAINVIEWER_URL);
+        if (!res.ok) throw new Error("Radar service unavailable");
+        const data = await res.json();
+        radarHost = data.host || "https://tilecache.rainviewer.com";
+        radarFrames = (data.radar?.past || []).slice(-10);
+        if (data.radar?.nowcast?.length) {
+          radarFrames = radarFrames.concat(data.radar.nowcast.slice(0, 2));
+        }
+        radarFrameIdx = radarFrames.length - 1;
+      }
+
+      function showRadarFrame(idx) {
+        const frame = radarFrames[idx];
+        if (!frame || !map) return;
+        if (radarLayer) radarLayer.remove();
+        // Tile pattern: {host}{path}/{size}/{z}/{x}/{y}/{color}/{smooth_snow}.png
+        // color 2 = original colors, smooth 1, snow 1.
+        const tpl = `${radarHost}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
+        radarLayer = L.tileLayer(tpl, { opacity: 0.65, tileSize: 256 }).addTo(map);
+        radarFrameIdx = idx;
+        const t = new Date(frame.time * 1000);
+        $("radar-time").textContent = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      }
+
+      function stopRadarAnimation() {
+        if (radarTimer) { clearInterval(radarTimer); radarTimer = null; }
+        $("radar-play").textContent = "▶ Play";
+      }
+      function startRadarAnimation() {
+        stopRadarAnimation();
+        radarTimer = setInterval(() => {
+          const next = (radarFrameIdx + 1) % radarFrames.length;
+          showRadarFrame(next);
+        }, 600);
+        $("radar-play").textContent = "❚❚ Pause";
+      }
+
+      async function toggleRadar() {
+        if (radarVisible) {
+          stopRadarAnimation();
+          if (radarLayer) { radarLayer.remove(); radarLayer = null; }
+          radarVisible = false;
+          $("radar-toggle").textContent = "Show rain radar";
+          $("radar-play").classList.add("hidden");
+          $("radar-time").textContent = "";
+          return;
+        }
+        try {
+          await fetchRadarFrames();
+          if (!radarFrames.length) throw new Error("No radar frames available");
+          showRadarFrame(radarFrames.length - 1);
+          radarVisible = true;
+          $("radar-toggle").textContent = "Hide rain radar";
+          $("radar-play").classList.remove("hidden");
+        } catch (e) {
+          setStatus(`Radar unavailable: ${e.message}`, true);
+        }
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // Geolocation
+      // ─────────────────────────────────────────────────────────────────────
+      function locateMe() {
+        if (!navigator.geolocation) {
+          setStatus("Geolocation not supported by your browser.", true);
+          return;
+        }
+        setStatus("Asking your browser for your location…");
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            const { latitude, longitude } = pos.coords;
+            const r = await reverseGeocode(latitude, longitude);
+            const label = r ? `${r.name}${r.admin1 ? ", " + r.admin1 : ""}` : `Your location`;
+            const geo = r || { latitude, longitude, name: "Your location" };
+            $("search-input").value = label;
+            await lookupGeo(geo);
+            try { localStorage.setItem("lastPlace", label); } catch (_) {}
+          },
+          (err) => setStatus(`Location denied or unavailable: ${err.message}`, true),
+          { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
+        );
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // Lookup
       // ─────────────────────────────────────────────────────────────────────
       async function lookup(name) {
         setStatus(`Looking up ${name}…`);
         $("results").classList.add("hidden");
         try {
           const geo = await geocode(name);
-          renderPlace(geo);
-          // Run forecast and AQ in parallel.
-          const [forecast, air] = await Promise.all([
-            getForecast(geo.latitude, geo.longitude),
-            getAir(geo.latitude, geo.longitude).catch(() => null), // AQ is optional
-          ]);
-          renderCurrent(forecast);
-          renderForecast(forecast);
-          renderAir(air);
-          showResults();
-          // Persist last lookup so a refresh keeps the same place.
+          await lookupGeo(geo);
           try { localStorage.setItem("lastPlace", name); } catch (_) {}
         } catch (err) {
           setStatus(err.message || "Something went wrong.", true);
         }
+      }
+
+      async function lookupGeo(geo) {
+        renderPlace(geo);
+        const [forecast, air] = await Promise.all([
+          getForecast(geo.latitude, geo.longitude),
+          getAir(geo.latitude, geo.longitude).catch(() => null),
+        ]);
+        renderCurrent(forecast);
+        renderForecast(forecast);
+        renderAir(air);
+        showResults();
+        // Init/move the map last so layout is settled.
+        const label = geo.name + (geo.admin1 ? `, ${geo.admin1}` : geo.country ? `, ${geo.country}` : "");
+        setTimeout(() => initMap(geo.latitude, geo.longitude, label), 50);
       }
 
       // ─────────────────────────────────────────────────────────────────────
@@ -520,8 +767,25 @@
           lookup(b.dataset.place);
         });
       });
+      $("locate-btn").addEventListener("click", locateMe);
+      $("unit-c").addEventListener("click", () => switchUnit("celsius"));
+      $("unit-f").addEventListener("click", () => switchUnit("fahrenheit"));
+      $("radar-toggle").addEventListener("click", toggleRadar);
+      $("radar-play").addEventListener("click", () => {
+        if (radarTimer) stopRadarAnimation(); else startRadarAnimation();
+      });
 
-      // On load: restore last place, or default to Reykjavik.
+      function switchUnit(u) {
+        if (getUnit() === u) return;
+        setUnit(u);
+        syncUnitToggleUI();
+        // Re-fetch current view in the new unit.
+        const last = $("search-input").value.trim();
+        if (last) lookup(last);
+      }
+
+      // Initial state
+      syncUnitToggleUI();
       const last = (() => { try { return localStorage.getItem("lastPlace"); } catch (_) { return null; } })();
       const initial = last || "Reykjavik";
       $("search-input").value = initial;
