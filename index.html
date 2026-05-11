@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Open Weather — fast, free weather for anywhere</title>
+    <meta name="description" content="Search any place and see current conditions, a 7-day forecast, and air quality. Powered by Open-Meteo. Free, no signup." />
+    <style>
+      :root {
+        --bg: #0b0f17;
+        --bg-elevated: #131a26;
+        --bg-input: #1a2333;
+        --border: #243042;
+        --text: #e7ecf3;
+        --text-dim: #8a96aa;
+        --text-faint: #5b6577;
+        --accent: #6ea8ff;
+        --accent-soft: rgba(110, 168, 255, 0.12);
+        --good: #4ad991;
+        --moderate: #f5c451;
+        --poor: #ff8a65;
+        --bad: #ff5e7e;
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+      a { color: var(--accent); }
+      .wrap {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 32px 20px 80px;
+      }
+      header h1 {
+        font-size: 22px;
+        font-weight: 600;
+        margin: 0 0 4px;
+        letter-spacing: -0.01em;
+      }
+      header p {
+        margin: 0 0 24px;
+        color: var(--text-dim);
+        font-size: 14px;
+      }
+      .search {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 28px;
+      }
+      .search input {
+        flex: 1;
+        padding: 12px 14px;
+        font-size: 16px;
+        background: var(--bg-input);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        color: var(--text);
+        outline: none;
+        transition: border-color 0.15s, box-shadow 0.15s;
+      }
+      .search input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-soft);
+      }
+      .search button {
+        padding: 12px 18px;
+        font-size: 15px;
+        font-weight: 500;
+        background: var(--accent);
+        color: #0b0f17;
+        border: 0;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: filter 0.1s;
+      }
+      .search button:hover { filter: brightness(1.05); }
+      .search button:active { transform: translateY(1px); }
+      .status {
+        padding: 16px;
+        border-radius: 10px;
+        background: var(--bg-elevated);
+        color: var(--text-dim);
+        font-size: 14px;
+        margin-bottom: 24px;
+      }
+      .status.error { color: var(--bad); }
+      .hidden { display: none !important; }
+      .card {
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 20px 22px;
+        margin-bottom: 16px;
+        box-shadow: var(--shadow);
+      }
+      .place {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+      .place .name { font-size: 18px; font-weight: 600; }
+      .place .meta { font-size: 13px; color: var(--text-faint); }
+      .now {
+        display: flex;
+        gap: 18px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .now .temp {
+        font-size: 64px;
+        line-height: 1;
+        font-weight: 300;
+        letter-spacing: -0.03em;
+      }
+      .now .temp .unit {
+        font-size: 28px;
+        color: var(--text-dim);
+        margin-left: 2px;
+      }
+      .now .desc {
+        flex: 1;
+        min-width: 160px;
+      }
+      .now .desc .label { font-size: 17px; font-weight: 500; }
+      .now .desc .feels { font-size: 14px; color: var(--text-dim); margin-top: 2px; }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+        margin-top: 18px;
+        padding-top: 18px;
+        border-top: 1px solid var(--border);
+      }
+      .stat .k { font-size: 12px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.04em; }
+      .stat .v { font-size: 16px; font-weight: 500; margin-top: 2px; }
+      h2 {
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-faint);
+        margin: 28px 0 10px;
+      }
+      .forecast {
+        display: grid;
+        gap: 8px;
+      }
+      .day {
+        display: grid;
+        grid-template-columns: 1fr 1.5fr 1fr 1fr;
+        gap: 10px;
+        align-items: center;
+        padding: 12px 14px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+      @media (max-width: 480px) {
+        .day { grid-template-columns: 1fr 1.4fr 1fr; }
+        .day .wind { display: none; }
+      }
+      .day .date { font-weight: 500; }
+      .day .date small { display: block; color: var(--text-faint); font-size: 12px; font-weight: 400; }
+      .day .summary { color: var(--text-dim); font-size: 14px; }
+      .day .temps { font-variant-numeric: tabular-nums; text-align: right; font-size: 15px; }
+      .day .temps .min { color: var(--text-faint); }
+      .day .precip { font-size: 13px; color: var(--accent); text-align: right; }
+      .day .wind { font-size: 13px; color: var(--text-faint); text-align: right; }
+      .aqi {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 12px;
+      }
+      @media (max-width: 480px) {
+        .aqi { grid-template-columns: 1fr 1fr; }
+      }
+      .aqi .pill {
+        padding: 12px;
+        border-radius: 10px;
+        background: var(--bg-input);
+      }
+      .aqi .pill .k { font-size: 11px; color: var(--text-faint); text-transform: uppercase; }
+      .aqi .pill .v { font-size: 17px; font-weight: 500; margin-top: 4px; }
+      .aqi .pill .cat { font-size: 12px; margin-top: 2px; }
+      .cat.good { color: var(--good); }
+      .cat.fair { color: var(--good); }
+      .cat.moderate { color: var(--moderate); }
+      .cat.poor { color: var(--poor); }
+      .cat.very-poor { color: var(--bad); }
+      .cat.extremely-poor { color: var(--bad); }
+      footer {
+        margin-top: 40px;
+        text-align: center;
+        font-size: 12px;
+        color: var(--text-faint);
+      }
+      footer a { color: var(--text-dim); text-decoration: none; border-bottom: 1px dotted var(--text-faint); }
+      footer a:hover { color: var(--accent); border-color: var(--accent); }
+      .examples {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-bottom: 24px;
+      }
+      .examples button {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text-dim);
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .examples button:hover {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <header>
+        <h1>Open Weather</h1>
+        <p>Search any city for live conditions, a 7-day forecast, and air quality.</p>
+      </header>
+
+      <form class="search" id="search-form" autocomplete="off">
+        <input
+          id="search-input"
+          type="text"
+          placeholder="Try Reykjavik, Tokyo, or Mount Kilimanjaro"
+          aria-label="Search for a place"
+          required
+        />
+        <button type="submit">Search</button>
+      </form>
+
+      <div class="examples">
+        <button type="button" data-place="Reykjavik">Reykjavik</button>
+        <button type="button" data-place="Tokyo">Tokyo</button>
+        <button type="button" data-place="Madrid">Madrid</button>
+        <button type="button" data-place="Delhi">Delhi</button>
+        <button type="button" data-place="Sydney">Sydney</button>
+      </div>
+
+      <div class="status" id="status">Type a place above and press Enter.</div>
+
+      <section class="hidden" id="results">
+        <div class="card" id="current-card">
+          <div class="place">
+            <div class="name" id="place-name"></div>
+            <div class="meta" id="place-meta"></div>
+          </div>
+          <div class="now">
+            <div class="temp" id="temp"></div>
+            <div class="desc">
+              <div class="label" id="desc-label"></div>
+              <div class="feels" id="desc-feels"></div>
+            </div>
+          </div>
+          <div class="stats" id="stats"></div>
+        </div>
+
+        <h2>7-day forecast</h2>
+        <div class="forecast" id="forecast"></div>
+
+        <h2>Air quality</h2>
+        <div class="aqi" id="aqi"></div>
+      </section>
+
+      <footer>
+        Data from
+        <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>
+        · CC-BY 4.0. No tracking, no ads, no API key.
+      </footer>
+    </main>
+
+    <script>
+      // ─────────────────────────────────────────────────────────────────────
+      // API endpoints
+      // ─────────────────────────────────────────────────────────────────────
+      const GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search";
+      const FORECAST_URL  = "https://api.open-meteo.com/v1/forecast";
+      const AIR_URL       = "https://air-quality-api.open-meteo.com/v1/air-quality";
+
+      // ─────────────────────────────────────────────────────────────────────
+      // WMO weather code → human description (matches the MCP server)
+      // ─────────────────────────────────────────────────────────────────────
+      const WEATHER_CODES = {
+        0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+        45: "Fog", 48: "Depositing rime fog",
+        51: "Light drizzle", 53: "Moderate drizzle", 55: "Dense drizzle",
+        56: "Light freezing drizzle", 57: "Dense freezing drizzle",
+        61: "Slight rain", 63: "Moderate rain", 65: "Heavy rain",
+        66: "Light freezing rain", 67: "Heavy freezing rain",
+        71: "Slight snow", 73: "Moderate snow", 75: "Heavy snow", 77: "Snow grains",
+        80: "Slight rain showers", 81: "Moderate rain showers", 82: "Violent rain showers",
+        85: "Slight snow showers", 86: "Heavy snow showers",
+        95: "Thunderstorm", 96: "Thunderstorm with slight hail", 99: "Thunderstorm with heavy hail",
+      };
+      const describeCode = (c) => WEATHER_CODES[c] ?? `Code ${c}`;
+
+      const COMPASS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+      const compass = (deg) => COMPASS[Math.round(((deg % 360) / 22.5)) % 16];
+
+      // ─────────────────────────────────────────────────────────────────────
+      // Tiny DOM helpers
+      // ─────────────────────────────────────────────────────────────────────
+      const $ = (id) => document.getElementById(id);
+      const setStatus = (msg, isErr = false) => {
+        const el = $("status");
+        el.textContent = msg;
+        el.classList.toggle("error", isErr);
+        el.classList.remove("hidden");
+      };
+      const showResults = () => {
+        $("status").classList.add("hidden");
+        $("results").classList.remove("hidden");
+      };
+      const fmtDate = (iso) => {
+        const d = new Date(iso + "T00:00");
+        return {
+          weekday: d.toLocaleDateString(undefined, { weekday: "short" }),
+          short: d.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+        };
+      };
+
+      // ─────────────────────────────────────────────────────────────────────
+      // Open-Meteo calls
+      // ─────────────────────────────────────────────────────────────────────
+      async function geocode(name) {
+        const url = `${GEOCODING_URL}?name=${encodeURIComponent(name)}&count=1&language=en&format=json`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`Geocoding failed (${res.status})`);
+        const data = await res.json();
+        const top = data.results?.[0];
+        if (!top) throw new Error(`No matches for "${name}". Try a more specific name.`);
+        return top;
+      }
+
+      async function getForecast(lat, lon) {
+        const params = new URLSearchParams({
+          latitude: lat,
+          longitude: lon,
+          current: "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m",
+          daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset",
+          timezone: "auto",
+          forecast_days: 7,
+        });
+        const res = await fetch(`${FORECAST_URL}?${params}`);
+        if (!res.ok) throw new Error(`Forecast failed (${res.status})`);
+        return res.json();
+      }
+
+      async function getAir(lat, lon) {
+        const params = new URLSearchParams({
+          latitude: lat,
+          longitude: lon,
+          hourly: "pm2_5,pm10,european_aqi,us_aqi",
+          forecast_days: 1,
+          timezone: "auto",
+        });
+        const res = await fetch(`${AIR_URL}?${params}`);
+        if (!res.ok) throw new Error(`Air quality failed (${res.status})`);
+        return res.json();
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // EAQI band labels (per Open-Meteo docs)
+      // ─────────────────────────────────────────────────────────────────────
+      function eaqiCategory(v) {
+        if (v == null) return { label: "—", cls: "" };
+        if (v <= 20)  return { label: "Good", cls: "good" };
+        if (v <= 40)  return { label: "Fair", cls: "fair" };
+        if (v <= 60)  return { label: "Moderate", cls: "moderate" };
+        if (v <= 80)  return { label: "Poor", cls: "poor" };
+        if (v <= 100) return { label: "Very poor", cls: "very-poor" };
+        return { label: "Extremely poor", cls: "extremely-poor" };
+      }
+      function usAqiCategory(v) {
+        if (v == null) return { label: "—", cls: "" };
+        if (v <= 50)  return { label: "Good", cls: "good" };
+        if (v <= 100) return { label: "Moderate", cls: "moderate" };
+        if (v <= 150) return { label: "Unhealthy for sensitive", cls: "poor" };
+        if (v <= 200) return { label: "Unhealthy", cls: "very-poor" };
+        if (v <= 300) return { label: "Very unhealthy", cls: "extremely-poor" };
+        return { label: "Hazardous", cls: "extremely-poor" };
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // Renderers
+      // ─────────────────────────────────────────────────────────────────────
+      function renderPlace(geo) {
+        $("place-name").textContent = geo.name + (geo.admin1 ? `, ${geo.admin1}` : "");
+        $("place-meta").textContent = [geo.country, geo.timezone].filter(Boolean).join(" · ");
+      }
+
+      function renderCurrent(forecast) {
+        const c = forecast.current;
+        const u = forecast.current_units;
+        $("temp").innerHTML = `${Math.round(c.temperature_2m)}<span class="unit">${u.temperature_2m}</span>`;
+        $("desc-label").textContent = describeCode(c.weather_code);
+        $("desc-feels").textContent = `Feels like ${Math.round(c.apparent_temperature)}${u.apparent_temperature}`;
+
+        $("stats").innerHTML = [
+          ["Humidity",     `${c.relative_humidity_2m}${u.relative_humidity_2m}`],
+          ["Wind",         `${Math.round(c.wind_speed_10m)} ${u.wind_speed_10m} ${compass(c.wind_direction_10m)}`],
+          ["Precipitation", `${c.precipitation}${u.precipitation}`],
+        ].map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+      }
+
+      function renderForecast(forecast) {
+        const d = forecast.daily;
+        const u = forecast.daily_units;
+        const html = d.time.map((day, i) => {
+          const date = fmtDate(day);
+          const code = d.weather_code[i];
+          const tMin = Math.round(d.temperature_2m_min[i]);
+          const tMax = Math.round(d.temperature_2m_max[i]);
+          const pSum = d.precipitation_sum[i];
+          const pProb = d.precipitation_probability_max[i];
+          const wMax = Math.round(d.wind_speed_10m_max[i]);
+          const today = i === 0;
+          return `
+            <div class="day">
+              <div class="date">${today ? "Today" : date.weekday}<small>${date.short}</small></div>
+              <div class="summary">${describeCode(code)}</div>
+              <div class="temps"><span class="max">${tMax}°</span> <span class="min">/ ${tMin}°</span></div>
+              <div class="precip">${pSum > 0 ? `${pSum}${u.precipitation_sum} ${pProb != null ? `· ${pProb}%` : ""}` : ""}</div>
+            </div>
+          `;
+        }).join("");
+        $("forecast").innerHTML = html;
+      }
+
+      function renderAir(air) {
+        if (!air?.hourly?.time) {
+          $("aqi").innerHTML = "<div class='pill'><div class='k'>Air quality</div><div class='v'>Not available</div></div>";
+          return;
+        }
+        // Pick the hour closest to now.
+        const now = new Date().toISOString().slice(0, 13); // YYYY-MM-DDTHH
+        let idx = air.hourly.time.findIndex((t) => t.startsWith(now));
+        if (idx === -1) idx = 0;
+
+        const eaqi = air.hourly.european_aqi?.[idx];
+        const usaqi = air.hourly.us_aqi?.[idx];
+        const pm25 = air.hourly.pm2_5?.[idx];
+        const pm10 = air.hourly.pm10?.[idx];
+
+        const ec = eaqiCategory(eaqi);
+        const uc = usAqiCategory(usaqi);
+
+        $("aqi").innerHTML = `
+          <div class="pill">
+            <div class="k">European AQI</div>
+            <div class="v">${eaqi != null ? Math.round(eaqi) : "—"}</div>
+            <div class="cat ${ec.cls}">${ec.label}</div>
+          </div>
+          <div class="pill">
+            <div class="k">US AQI</div>
+            <div class="v">${usaqi != null ? Math.round(usaqi) : "—"}</div>
+            <div class="cat ${uc.cls}">${uc.label}</div>
+          </div>
+          <div class="pill">
+            <div class="k">PM2.5 / PM10</div>
+            <div class="v">${pm25 != null ? Math.round(pm25) : "—"} / ${pm10 != null ? Math.round(pm10) : "—"}</div>
+            <div class="cat">µg/m³</div>
+          </div>
+        `;
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // Top-level lookup
+      // ─────────────────────────────────────────────────────────────────────
+      async function lookup(name) {
+        setStatus(`Looking up ${name}…`);
+        $("results").classList.add("hidden");
+        try {
+          const geo = await geocode(name);
+          renderPlace(geo);
+          // Run forecast and AQ in parallel.
+          const [forecast, air] = await Promise.all([
+            getForecast(geo.latitude, geo.longitude),
+            getAir(geo.latitude, geo.longitude).catch(() => null), // AQ is optional
+          ]);
+          renderCurrent(forecast);
+          renderForecast(forecast);
+          renderAir(air);
+          showResults();
+          // Persist last lookup so a refresh keeps the same place.
+          try { localStorage.setItem("lastPlace", name); } catch (_) {}
+        } catch (err) {
+          setStatus(err.message || "Something went wrong.", true);
+        }
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // Wiring
+      // ─────────────────────────────────────────────────────────────────────
+      $("search-form").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const v = $("search-input").value.trim();
+        if (v) lookup(v);
+      });
+      document.querySelectorAll(".examples button").forEach((b) => {
+        b.addEventListener("click", () => {
+          $("search-input").value = b.dataset.place;
+          lookup(b.dataset.place);
+        });
+      });
+
+      // On load: restore last place, or default to Reykjavik.
+      const last = (() => { try { return localStorage.getItem("lastPlace"); } catch (_) { return null; } })();
+      const initial = last || "Reykjavik";
+      $("search-input").value = initial;
+      lookup(initial);
+    </script>
+  </body>
+</html>
